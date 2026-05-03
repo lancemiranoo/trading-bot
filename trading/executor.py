@@ -1,7 +1,7 @@
 import MetaTrader5 as mt5
 from datetime import datetime, timedelta
-import config
-from logger import get_logger
+from core import config
+from core.logger import get_logger
 
 logger = get_logger("TradeExecutor")
 

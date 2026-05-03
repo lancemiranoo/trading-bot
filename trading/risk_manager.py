@@ -1,6 +1,6 @@
 import MetaTrader5 as mt5
-import config
-from logger import get_logger
+from core import config
+from core.logger import get_logger
 from datetime import datetime, timedelta
 
 logger = get_logger("RiskManager")

@@ -1,9 +1,9 @@
 from telethon import TelegramClient, events
 import asyncio
-import config
-from signal_parser import parse_signal
-from trade_executor import execute_trade
-from logger import get_logger
+from core import config
+from telegram.parser import parse_signal
+from trading.executor import execute_trade
+from core.logger import get_logger
 
 logger = get_logger("SignalListener")
 

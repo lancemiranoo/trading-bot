@@ -1,10 +1,10 @@
 import asyncio
 import MetaTrader5 as mt5
-import config
-from logger import get_logger
-from risk_manager import RiskManager
-from trade_executor import initialize_mt5
-from signal_listener import setup_listener
+from core import config
+from core.logger import get_logger
+from trading.risk_manager import RiskManager
+from trading.executor import initialize_mt5
+from telegram.listener import setup_listener
 import sys
 
 logger = get_logger("Main")

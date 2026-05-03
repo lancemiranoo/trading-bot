@@ -6,8 +6,11 @@ import os
 if sys.platform == 'win32' and hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LOG_DIR = os.path.join(PROJECT_ROOT, 'logs')
+
 # Create logs directory if it doesn't exist
-os.makedirs('logs', exist_ok=True)
+os.makedirs(LOG_DIR, exist_ok=True)
 
 def get_logger(name):
     """
@@ -26,7 +29,7 @@ def get_logger(name):
         logger.addHandler(ch)
 
         # File Handler
-        fh = logging.FileHandler(os.path.join('logs', 'trading_bot.log'), encoding='utf-8')
+        fh = logging.FileHandler(os.path.join(LOG_DIR, 'trading_bot.log'), encoding='utf-8')
         fh.setFormatter(formatter)
         logger.addHandler(fh)
         
