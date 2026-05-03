@@ -39,11 +39,8 @@ A robust, production-ready automated trading bot that listens to Telegram signal
 
 ### 3. Configuration
 1. Go to [my.telegram.org](https://my.telegram.org) and create an App to get your `API_ID` and `API_HASH`.
-2. Copy the `.env.example` file to `.env`:
-   ```cmd
-   copy .env.example .env
-   ```
-3. Open `.env` and fill in your details:
+
+2. Open `.env` and fill in your details:
    - Telegram `API_ID`, `API_HASH`, and `PHONE`.
    - `CHANNEL_IDS`: the IDs of the Telegram channels you want to listen to.
    - `MT5_LOGIN`, `MT5_PASSWORD`, and `MT5_SERVER`.
