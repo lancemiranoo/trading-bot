@@ -54,7 +54,7 @@ Make sure your MT5 terminal is open and logged into the correct account (even if
 
 Run the bot:
 ```cmd
-python main.py
+py main.py
 ```
 *Note: On first run, Telethon will ask for a verification code sent to your Telegram app. Enter the code in the terminal.*
 
