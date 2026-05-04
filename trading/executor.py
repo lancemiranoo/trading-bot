@@ -41,16 +41,24 @@ def execute_trade(signal, risk_manager):
         logger.error(f"Failed to select symbol {symbol}.")
         return False
 
-    action = mt5.ORDER_TYPE_BUY_LIMIT if signal['type'] == 'BUY' else mt5.ORDER_TYPE_SELL_LIMIT
-    price = signal['entry']
+    # Fetch current market prices to determine LIMIT vs STOP
+    tick = mt5.symbol_info_tick(symbol)
+    if not tick:
+        logger.error(f"Failed to get tick data for {symbol}.")
+        return False
+
+    if signal['type'] == 'BUY':
+        action = mt5.ORDER_TYPE_BUY
+        price = tick.ask
+    else: # SELL
+        action = mt5.ORDER_TYPE_SELL
+        price = tick.bid
+
     sl = signal['sl']
     tp = signal['tp1']
 
-    # Set expiration time (e.g., 10 minutes from now)
-    expiration = int((datetime.now() + timedelta(minutes=config.ORDER_EXPIRATION_MINUTES)).timestamp())
-
     request = {
-        "action": mt5.TRADE_ACTION_PENDING,
+        "action": mt5.TRADE_ACTION_DEAL,
         "symbol": symbol,
         "volume": lot,
         "type": action,
@@ -60,9 +68,8 @@ def execute_trade(signal, risk_manager):
         "deviation": 20,
         "magic": 123456,
         "comment": "TG_Signal_Bot",
-        "type_time": mt5.ORDER_TIME_SPECIFIED,
-        "expiration": expiration,
-        "type_filling": mt5.ORDER_FILLING_RETURN,
+        "type_time": mt5.ORDER_TIME_GTC,
+        "type_filling": mt5.ORDER_FILLING_IOC,
     }
 
     logger.info(f"Sending MT5 Order Request: {request}")
@@ -72,5 +79,5 @@ def execute_trade(signal, risk_manager):
         logger.error(f"Order failed, retcode={result.retcode}. Error: {result.comment}")
         return False
 
-    logger.info(f"Trade placed successfully: {signal['type']} Limit at {price}, SL: {sl}, TP: {tp}")
+    logger.info(f"Trade placed successfully: {signal['type']} Market at {price}, SL: {sl}, TP: {tp}")
     return True

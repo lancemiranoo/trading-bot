@@ -4,57 +4,81 @@ from core.logger import get_logger
 logger = get_logger("SignalParser")
 
 def parse_signal(text):
-    """
-    Parses a trading signal from Telegram.
-    Expected format:
-    SELL: 4578-4583
-    TP1: 4573
-    TP2: 4568
-    TP3: 4563
-    TP4: OPEN
-    SL: 4593
-    """
+
     try:
         text = text.upper()
-        if "BUY" not in text and "SELL" not in text:
-            return None
+        # Clean up
+        text = text.replace('*', '')
+        text = text.replace('：', ':')
+        
+        # Normalize superscripts (¹ -> 1, etc)
+        superscripts = {'¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5'}
+        for k, v in superscripts.items():
+            text = text.replace(k, v)
+        
+        # Remove zero-width spaces and other invisible formatting characters
+        text = re.sub(r'[\u200b\u200c\u200d\u200e\u200f\ufeff]', '', text)
 
         signal = {}
 
-        # Determine type and extract entry bounds
-        if "SELL:" in text:
-            signal['type'] = 'SELL'
-            entry_match = re.search(r'SELL:\s*([\d.]+)\s*-\s*([\d.]+)', text)
-        elif "BUY:" in text:
+        if "BUY" in text:
             signal['type'] = 'BUY'
-            entry_match = re.search(r'BUY:\s*([\d.]+)\s*-\s*([\d.]+)', text)
+        elif "SELL" in text:
+            signal['type'] = 'SELL'
         else:
             return None
+
+        # Find Entry Price
+        # Look for "Entry Price:", "Entry:", or just after BUY/SELL
+        entry_match = re.search(r'ENTRY\s*(?:PRICE)?\s*[:]?\s*([\d.]+)(?:\s*-\s*([\d.]+))?', text)
+        if not entry_match:
+            # Handle "BUY NOW !" or "SELL NOW !"
+            if signal['type'] == 'SELL':
+                entry_match = re.search(r'SELL\s*(?:NOW\s*!)?\s*[:]?\s*([\d.]+)(?:\s*-\s*([\d.]+))?', text)
+            else:
+                entry_match = re.search(r'BUY\s*(?:NOW\s*!)?\s*[:]?\s*([\d.]+)(?:\s*-\s*([\d.]+))?', text)
 
         if not entry_match:
             logger.debug("Entry bounds not found in signal format.")
             return None
 
-        bound1 = float(entry_match.group(1))
-        bound2 = float(entry_match.group(2))
+        bound1_str = entry_match.group(1)
+        bound2_str = entry_match.group(2)
+
+        bound1 = float(bound1_str)
+        if bound2_str:
+            # Handle abbreviated bounds like 4596-93 -> 4593
+            if len(bound2_str) < len(bound1_str):
+                prefix = bound1_str[:-len(bound2_str)]
+                bound2 = float(prefix + bound2_str)
+            else:
+                bound2 = float(bound2_str)
+        else:
+            bound2 = bound1
         
         # Determine strict entry price
-        # For SELL, we want to sell at the upper bound.
-        # For BUY, we want to buy at the lower bound.
         if signal['type'] == 'SELL':
             signal['entry'] = max(bound1, bound2)
         else:
             signal['entry'] = min(bound1, bound2)
 
         # Extract TP1 (mandatory)
-        tp_match = re.search(r'TP1:\s*([\d.]+)', text)
+        # Matches TP, ITP, TP1, etc. handles dots like TP1. 
+        tp_match = re.search(r'(?:I)?TP\s*(?:1)?\s*[:.]?\s*([\d.]+)', text)
+        if not tp_match:
+            tp_match = re.search(r'TP\s*[:.]?\s*([\d.]+)', text)
+            
         if not tp_match:
             logger.warning("No TP1 found in signal. Ignoring.")
             return None
         signal['tp1'] = float(tp_match.group(1))
 
         # Extract SL (mandatory)
-        sl_match = re.search(r'SL:\s*([\d.]+)', text)
+        # Matches SL or STOP LOSS, handles dots like SL.
+        sl_match = re.search(r'SL\s*[:.]?\s*([\d.]+)', text)
+        if not sl_match:
+            sl_match = re.search(r'STOP\s*LOSS\s*(?:\(SL\))?\s*[:.]?\s*([\d.]+)', text)
+            
         if not sl_match:
             logger.warning("No SL found in signal. Ignoring.")
             return None

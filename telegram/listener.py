@@ -21,12 +21,28 @@ def setup_listener(risk_manager):
     chats_to_listen = config.CHANNEL_IDS if config.CHANNEL_IDS else None
 
     @client.on(events.NewMessage(chats=chats_to_listen))
+    @client.on(events.MessageEdited(chats=chats_to_listen))
     async def new_message_handler(event):
+        topic_id = None
+        if event.message.reply_to:
+            topic_id = getattr(event.message.reply_to, 'reply_to_top_id', None) or getattr(event.message.reply_to, 'reply_to_msg_id', None)
+
+        # Topic Filtering Logic
+        if hasattr(config, 'TOPIC_FILTERS') and config.TOPIC_FILTERS and event.chat_id in config.TOPIC_FILTERS:
+            allowed_topics = config.TOPIC_FILTERS[event.chat_id]
+            
+            # If the message isn't in one of the allowed topics, ignore it.
+            if topic_id not in allowed_topics:
+                return
+
         text = event.message.text
         if not text:
             return
 
-        logger.info(f"Incoming message from channel {event.chat_id}: {text[:50]}...")
+        chat = await event.get_chat()
+        channel_name = getattr(chat, 'title', f"Unknown Channel ({event.chat_id})")
+        
+        logger.info(f"Incoming message from channel '{channel_name}': {text[:50]}...")
 
         # Parse the message
         signal = parse_signal(text)
