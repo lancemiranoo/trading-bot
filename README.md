@@ -1,6 +1,6 @@
 # MT5 Telegram Trading Bot
 
-A robust, production-ready automated trading bot that listens to Telegram signals and executes them on MetaTrader 5 (MT5).
+Trading bot ni joriz.
 
 ## Features
 
