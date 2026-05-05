@@ -1,7 +1,8 @@
 import MetaTrader5 as mt5
 from core import config
 from core.logger import get_logger
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import pytz
 
 logger = get_logger("RiskManager")
 
@@ -66,6 +67,24 @@ class RiskManager:
             logger.warning(f"Max consecutive losses reached ({self.consecutive_losses}). Pausing trading.")
             self.trading_paused = True
 
+    def is_in_trading_session(self):
+        """Checks if the current UTC time is within the allowed trading sessions."""
+        now_utc = datetime.now(timezone.utc).time()
+        
+        for session in config.TRADING_SESSIONS:
+            start_time = datetime.strptime(session['start'], "%H:%M").time()
+            end_time = datetime.strptime(session['end'], "%H:%M").time()
+            
+            # Handle sessions that cross midnight (e.g., 22:00 to 04:00)
+            if start_time <= end_time:
+                if start_time <= now_utc <= end_time:
+                    return True, session['name']
+            else: # Crosses midnight
+                if now_utc >= start_time or now_utc <= end_time:
+                    return True, session['name']
+        
+        return False, None
+
     def can_trade(self):
         """Checks if placing a new trade is allowed based on risk parameters."""
         self.check_daily_reset()
@@ -73,6 +92,16 @@ class RiskManager:
         if self.trading_paused:
             logger.warning("Trading is currently paused due to risk limits.")
             return False
+
+        # Session Check
+        in_session, session_name = self.is_in_trading_session()
+        if not in_session:
+            tz = pytz.timezone(config.DISPLAY_TIMEZONE)
+            local_now = datetime.now(pytz.utc).astimezone(tz)
+            logger.warning(f"Trade rejected: Outside of allowed sessions. Current local time: {local_now.strftime('%H:%M')} {config.DISPLAY_TIMEZONE}")
+            return False
+        else:
+            logger.info(f"Session check passed: Currently in {session_name} session.")
 
         # Check total open trades
         positions = mt5.positions_get(symbol=config.SYMBOL)

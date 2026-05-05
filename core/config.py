@@ -10,6 +10,7 @@ load_dotenv()
 API_ID = int(os.getenv('API_ID', '0'))
 API_HASH = os.getenv('API_HASH', '')
 PHONE = os.getenv('PHONE', '')
+DISPLAY_TIMEZONE = os.getenv('DISPLAY_TIMEZONE', 'America/Edmonton') # Default to Alberta, can be 'Asia/Manila'
 
 # Comma-separated list of Telegram Channel IDs to listen to
 # Can include topics like: -100123456789_7
@@ -56,3 +57,12 @@ MAX_CONSECUTIVE_LOSSES = 10
 
 # Trade Execution
 ORDER_EXPIRATION_MINUTES = 10
+
+# Session Times (UTC)
+# Asian Session: 00:00 - 09:00 UTC
+# London Session: 08:00 - 17:00 UTC
+# Combined range: 00:00 - 17:00 UTC
+TRADING_SESSIONS = [
+    {"name": "Asian", "start": "00:00", "end": "09:00"},
+    {"name": "London", "start": "08:00", "end": "17:00"}
+]

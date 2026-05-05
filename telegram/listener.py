@@ -59,8 +59,7 @@ def setup_listener(risk_manager):
         processed_signals.add(sig_hash)
         logger.info(f"Valid signal parsed successfully: {signal}")
 
-        # Execute the trade (runs synchronously, so it doesn't block async loop too much, 
-        # but could be offloaded to an executor in a heavy traffic environment)
-        execute_trade(signal, risk_manager)
+        # Execute the trade
+        execute_trade(signal, risk_manager, channel_name)
 
     return client

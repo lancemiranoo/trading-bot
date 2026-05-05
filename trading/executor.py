@@ -2,6 +2,7 @@ import MetaTrader5 as mt5
 from datetime import datetime, timedelta
 from core import config
 from core.logger import get_logger
+from trading.trade_logger import log_trade
 
 logger = get_logger("TradeExecutor")
 
@@ -25,7 +26,7 @@ def initialize_mt5():
         logger.error(f"Failed to connect to MT5 account. Error code: {mt5.last_error()}")
         return False
 
-def execute_trade(signal, risk_manager):
+def execute_trade(signal, risk_manager, channel_name="Unknown"):
     """
     Places a LIMIT order based on the parsed signal and risk parameters.
     """
@@ -76,8 +77,10 @@ def execute_trade(signal, risk_manager):
     result = mt5.order_send(request)
 
     if result.retcode != mt5.TRADE_RETCODE_DONE:
-        logger.error(f"Order failed, retcode={result.retcode}. Error: {result.comment}")
+        err_msg = f"Order failed, retcode={result.retcode}. Error: {result.comment}"
+        logger.error(err_msg)
         return False
 
     logger.info(f"Trade placed successfully: {signal['type']} Market at {price}, SL: {sl}, TP: {tp}")
+    log_trade(signal, channel_name, price=price, ticket=result.order)
     return True
