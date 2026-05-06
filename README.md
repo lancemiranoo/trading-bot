@@ -1,6 +1,6 @@
 # MT5 Telegram Trading Bot
 
-Trading bot ni joriz, lance at montana.
+Trading bot ni joriz.
 
 ## Features
 
