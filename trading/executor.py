@@ -90,6 +90,10 @@ def execute_trade(signal, risk_manager, channel_name="Unknown"):
     logger.info(f"Sending MT5 Order Request: {request}")
     result = mt5.order_send(request)
 
+    if result is None:
+        logger.error(f"Order failed: Could not communicate with MT5 terminal. Check connection. Error: {mt5.last_error()}")
+        return False
+
     if result.retcode != mt5.TRADE_RETCODE_DONE:
         # Provide more detailed error logging
         err_msg = f"Order failed, retcode={result.retcode}. Error: {result.comment}"
