@@ -50,6 +50,7 @@ def log_trade(signal, channel_name, price=None, ticket=None):
 def log_closed_trade(deal):
     """
     Logs the closure of a trade including profit and result (Win/Loss).
+    Retrieves original SL/TP and Channel info from history.
     """
     file_exists = os.path.isfile(TRADES_LOG_FILE)
     headers = [
@@ -57,24 +58,46 @@ def log_closed_trade(deal):
         'Price', 'SL', 'TP', 'Profit', 'Loss', 'Channel'
     ]
     
+    # 1. Fetch original Order to get SL, TP, and Channel Name
+    # (Deals don't store SL/TP, so we must check the order that opened this position)
+    orders = mt5.history_orders_get(position=deal.position_id)
+    sl = 0.0
+    tp = 0.0
+    comment = "-"
+    
+    if orders:
+        # Sort by time to get the first order (the opening one)
+        first_order = sorted(orders, key=lambda x: x.time_setup)[0]
+        sl = first_order.sl
+        tp = first_order.tp
+        comment = first_order.comment
+    
+    # Extract channel from comment (e.g., "TG_The MMM" -> "The MMM")
+    channel_name = comment.replace("TG_", "") if (comment and comment.startswith("TG_")) else "-"
+    if not channel_name or channel_name == "Signal_Bot": channel_name = "-"
+
     tz = pytz.timezone(config.DISPLAY_TIMEZONE)
     local_now = datetime.now(pytz.utc).astimezone(tz)
     
     profit = deal.profit + deal.commission + deal.fee + deal.swap
     result = "WIN" if profit > 0 else "LOSS"
     
+    # Correct the Type: the deal.type for an OUT deal is the opposite of the position
+    # If the position was BUY, the OUT deal is a SELL.
+    pos_type = "SELL" if deal.type == mt5.DEAL_TYPE_BUY else "BUY"
+
     row = {
         'Timestamp': local_now.strftime('%Y-%m-%d %H:%M:%S'),
-        'Ticket': deal.position_id, # Link back to the position
+        'Ticket': deal.position_id,
         'Symbol': deal.symbol,
-        'Type': 'BUY' if deal.type == mt5.DEAL_TYPE_SELL else 'SELL', # Closing a BUY is a DEAL_TYPE_SELL
+        'Type': pos_type,
         'Status': f"CLOSED ({result})",
         'Price': f"{deal.price:.2f}",
-        'SL': "0.00", # SL/TP not directly in deal, but we have price
-        'TP': "0.00",
+        'SL': f"{sl:.2f}",
+        'TP': f"{tp:.2f}",
         'Profit': f"{profit:.2f}" if profit > 0 else "0.00",
         'Loss': f"{abs(profit):.2f}" if profit < 0 else "0.00",
-        'Channel': '-' 
+        'Channel': channel_name
     }
     
     try:

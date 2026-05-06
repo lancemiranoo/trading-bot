@@ -82,7 +82,7 @@ def execute_trade(signal, risk_manager, channel_name="Unknown"):
         "tp": tp,
         "deviation": 20,
         "magic": 123456,
-        "comment": "TG_Signal_Bot",
+        "comment": f"TG_{channel_name}",
         "type_time": mt5.ORDER_TIME_GTC,
         "type_filling": mt5.ORDER_FILLING_IOC,
     }
@@ -99,5 +99,5 @@ def execute_trade(signal, risk_manager, channel_name="Unknown"):
         return False
 
     logger.info(f"Trade placed successfully: {signal['type']} Market at {price}, SL: {sl}, TP: {tp}")
-    log_trade(signal, channel_name, price=price, ticket=result.order)
+    # log_trade(signal, channel_name, price=price, ticket=result.order) # Disabled to only show CLOSED trades in CSV
     return True
