@@ -48,15 +48,29 @@ def execute_trade(signal, risk_manager, channel_name="Unknown"):
         logger.error(f"Failed to get tick data for {symbol}.")
         return False
 
+    sl = signal['sl']
+    tp = signal['tp1']
+
     if signal['type'] == 'BUY':
         action = mt5.ORDER_TYPE_BUY
         price = tick.ask
+        # Safety check: Is the price still between SL and TP?
+        if price >= tp:
+            logger.warning(f"Skipping BUY trade: Current price ({price}) is already above or at TP ({tp}).")
+            return False
+        if price <= sl:
+            logger.warning(f"Skipping BUY trade: Current price ({price}) is already below or at SL ({sl}).")
+            return False
     else: # SELL
         action = mt5.ORDER_TYPE_SELL
         price = tick.bid
-
-    sl = signal['sl']
-    tp = signal['tp1']
+        # Safety check: Is the price still between SL and TP?
+        if price <= tp:
+            logger.warning(f"Skipping SELL trade: Current price ({price}) is already below or at TP ({tp}).")
+            return False
+        if price >= sl:
+            logger.warning(f"Skipping SELL trade: Current price ({price}) is already above or at SL ({sl}).")
+            return False
 
     request = {
         "action": mt5.TRADE_ACTION_DEAL,
@@ -77,7 +91,10 @@ def execute_trade(signal, risk_manager, channel_name="Unknown"):
     result = mt5.order_send(request)
 
     if result.retcode != mt5.TRADE_RETCODE_DONE:
+        # Provide more detailed error logging
         err_msg = f"Order failed, retcode={result.retcode}. Error: {result.comment}"
+        if result.retcode == 10016:
+            err_msg += " (Invalid stops - check if price is too close to SL/TP or if levels are swapped)"
         logger.error(err_msg)
         return False
 

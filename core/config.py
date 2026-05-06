@@ -52,11 +52,11 @@ LOT_SIZE = 0.01
 
 # Risk Management
 MAX_OPEN_TRADES = 5
-DAILY_LOSS_LIMIT = 50.0  # In account currency (e.g., USD)
-MAX_CONSECUTIVE_LOSSES = 10
+SESSION_LOSS_LIMIT = 50.0  # Loss limit per individual trading session (Asian/London)
+MAX_CONSECUTIVE_LOSSES = 5
 
 # Trade Execution
-ORDER_EXPIRATION_MINUTES = 10
+# ORDER_EXPIRATION_MINUTES = 10
 
 # Session Times (UTC)
 # Asian Session: 00:00 - 09:00 UTC

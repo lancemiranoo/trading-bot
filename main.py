@@ -20,8 +20,8 @@ async def risk_monitor_loop(risk_manager):
         except Exception as e:
             logger.error(f"Error in risk monitor loop: {e}")
         
-        # Check every 60 seconds
-        await asyncio.sleep(60)
+        # Check every 5 seconds for faster logging
+        await asyncio.sleep(5)
 
 async def main():
     logger.info("Starting MT5 Telegram Trading Bot...")
