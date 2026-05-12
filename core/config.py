@@ -47,13 +47,13 @@ PAPER_TRADING = os.getenv('PAPER_TRADING', 'True').lower() in ('true', '1', 't')
 # ==========================================
 # Trading Parameters
 # ==========================================
-SYMBOL = "XAUUSD"
+SYMBOL = "XAUUSD-STD"
 LOT_SIZE = 0.01
 
 # Risk Management
 MAX_OPEN_TRADES = 5
 SESSION_LOSS_LIMIT = 50.0  # Loss limit per individual trading session (Asian/London)
-MAX_CONSECUTIVE_LOSSES = 5
+MAX_CONSECUTIVE_LOSSES = 3
 
 # Trade Execution
 # ORDER_EXPIRATION_MINUTES = 10

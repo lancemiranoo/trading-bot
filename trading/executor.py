@@ -8,8 +8,10 @@ logger = get_logger("TradeExecutor")
 
 def initialize_mt5():
     """Initializes and logs into the MetaTrader 5 terminal."""
-    if not mt5.initialize():
-        logger.error(f"MT5 initialization failed. Error code: {mt5.last_error()}")
+    # Use explicit path to resolve IPC timeout issues
+    mt5_path = "C:/Program Files/MetaTrader 5/terminal64.exe"
+    if not mt5.initialize(path=mt5_path):
+        logger.error(f"MT5 initialization failed at {mt5_path}. Error code: {mt5.last_error()}")
         return False
 
     if config.PAPER_TRADING:
@@ -89,6 +91,9 @@ def execute_trade(signal, risk_manager, channel_name="Unknown"):
 
     logger.info(f"Sending MT5 Order Request: {request}")
     result = mt5.order_send(request)
+    if result is None:
+        logger.error(f"MT5 order_send returned None. Last error: {mt5.last_error()}")
+        return False
 
     if result.retcode != mt5.TRADE_RETCODE_DONE:
         # Provide more detailed error logging
