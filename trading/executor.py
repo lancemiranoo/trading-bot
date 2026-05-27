@@ -44,7 +44,7 @@ def execute_trade(signal, risk_manager, channel_name="Unknown"):
         logger.error(f"Failed to select symbol {symbol}.")
         return False
 
-    # Fetch current market prices to determine LIMIT vs STOP
+    # Fetch current market prices to determine validity
     tick = mt5.symbol_info_tick(symbol)
     if not tick:
         logger.error(f"Failed to get tick data for {symbol}.")
@@ -52,30 +52,42 @@ def execute_trade(signal, risk_manager, channel_name="Unknown"):
 
     sl = signal['sl']
     tp = signal['tp1']
+    entry_price = signal['entry']
 
-    if signal['type'] == 'BUY':
-        action = mt5.ORDER_TYPE_BUY
-        price = tick.ask
+    if signal['type'] == 'BUY_LIMIT':
+        action = mt5.ORDER_TYPE_BUY_LIMIT
+        price = entry_price
         # Safety check: Is the price still between SL and TP?
         if price >= tp:
-            logger.warning(f"Skipping BUY trade: Current price ({price}) is already above or at TP ({tp}).")
+            logger.warning(f"Skipping BUY_LIMIT trade: Entry price ({price}) is already above or at TP ({tp}).")
             return False
         if price <= sl:
-            logger.warning(f"Skipping BUY trade: Current price ({price}) is already below or at SL ({sl}).")
+            logger.warning(f"Skipping BUY_LIMIT trade: Entry price ({price}) is already below or at SL ({sl}).")
             return False
-    else: # SELL
-        action = mt5.ORDER_TYPE_SELL
-        price = tick.bid
+        # For a BUY_LIMIT order, the current market price (ask) must be above the entry price.
+        if tick.ask <= price:
+            logger.warning(f"Skipping BUY_LIMIT trade: Current market price ({tick.ask}) is already at or below entry price ({price}).")
+            return False
+    elif signal['type'] == 'SELL_LIMIT':
+        action = mt5.ORDER_TYPE_SELL_LIMIT
+        price = entry_price
         # Safety check: Is the price still between SL and TP?
         if price <= tp:
-            logger.warning(f"Skipping SELL trade: Current price ({price}) is already below or at TP ({tp}).")
+            logger.warning(f"Skipping SELL_LIMIT trade: Entry price ({price}) is already below or at TP ({tp}).")
             return False
         if price >= sl:
-            logger.warning(f"Skipping SELL trade: Current price ({price}) is already above or at SL ({sl}).")
+            logger.warning(f"Skipping SELL_LIMIT trade: Entry price ({price}) is already above or at SL ({sl}).")
             return False
+        # For a SELL_LIMIT order, the current market price (bid) must be below the entry price.
+        if tick.bid >= price:
+            logger.warning(f"Skipping SELL_LIMIT trade: Current market price ({tick.bid}) is already at or above entry price ({price}).")
+            return False
+    else:
+        logger.error(f"Unknown signal type: {signal['type']}")
+        return False
 
     request = {
-        "action": mt5.TRADE_ACTION_DEAL,
+        "action": mt5.TRADE_ACTION_PENDING,
         "symbol": symbol,
         "volume": lot,
         "type": action,
@@ -85,9 +97,16 @@ def execute_trade(signal, risk_manager, channel_name="Unknown"):
         "deviation": 20,
         "magic": 123456,
         "comment": f"TG_{channel_name}",
-        "type_time": mt5.ORDER_TIME_GTC,
-        "type_filling": mt5.ORDER_FILLING_IOC,
+        "type_filling": mt5.ORDER_FILLING_RETURN,
     }
+
+    # Add expiration if specified in config
+    expiration_minutes = getattr(config, 'ORDER_EXPIRATION_MINUTES', None)
+    if expiration_minutes:
+        request["type_time"] = mt5.ORDER_TIME_SPECIFIED
+        request["expiration"] = int(tick.time + expiration_minutes * 60)
+    else:
+        request["type_time"] = mt5.ORDER_TIME_GTC
 
     logger.info(f"Sending MT5 Order Request: {request}")
     result = mt5.order_send(request)
@@ -99,10 +118,10 @@ def execute_trade(signal, risk_manager, channel_name="Unknown"):
         # Provide more detailed error logging
         err_msg = f"Order failed, retcode={result.retcode}. Error: {result.comment}"
         if result.retcode == 10016:
-            err_msg += " (Invalid stops - check if price is too close to SL/TP or if levels are swapped)"
+            err_msg += " (Invalid stops - check if price is too close to SL/TP or if levels are swapped or if order price is invalid)"
         logger.error(err_msg)
         return False
 
-    logger.info(f"Trade placed successfully: {signal['type']} Market at {price}, SL: {sl}, TP: {tp}")
+    logger.info(f"Trade placed successfully: {signal['type']} Limit at {price}, SL: {sl}, TP: {tp}")
     # log_trade(signal, channel_name, price=price, ticket=result.order) # Disabled to only show CLOSED trades in CSV
     return True

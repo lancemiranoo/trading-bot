@@ -22,9 +22,9 @@ def parse_signal(text):
         signal = {}
 
         if "BUY" in text:
-            signal['type'] = 'BUY'
+            signal['type'] = 'BUY_LIMIT'
         elif "SELL" in text:
-            signal['type'] = 'SELL'
+            signal['type'] = 'SELL_LIMIT'
         else:
             return None
 
@@ -33,7 +33,7 @@ def parse_signal(text):
         entry_match = re.search(r'ENTRY\s*(?:PRICE)?\s*[:]?\s*([\d.]+)(?:\s*-\s*([\d.]+))?', text)
         if not entry_match:
             # Handle "BUY NOW !" or "SELL NOW !"
-            if signal['type'] == 'SELL':
+            if signal['type'] == 'SELL_LIMIT':
                 entry_match = re.search(r'SELL\s*(?:NOW\s*!)?\s*[:]?\s*([\d.]+)(?:\s*-\s*([\d.]+))?', text)
             else:
                 entry_match = re.search(r'BUY\s*(?:NOW\s*!)?\s*[:]?\s*([\d.]+)(?:\s*-\s*([\d.]+))?', text)
@@ -56,11 +56,8 @@ def parse_signal(text):
         else:
             bound2 = bound1
         
-        # Determine strict entry price
-        if signal['type'] == 'SELL':
-            signal['entry'] = max(bound1, bound2)
-        else:
-            signal['entry'] = min(bound1, bound2)
+        # Determine entry price using the median of the two bounds
+        signal['entry'] = (bound1 + bound2) / 2.0
 
         # Extract TP1 (mandatory)
         # Matches TP, ITP, TP1, etc. handles dots like TP1. 
@@ -85,13 +82,13 @@ def parse_signal(text):
         signal['sl'] = float(sl_match.group(1))
 
         # Validate logic
-        if signal['type'] == 'SELL':
+        if signal['type'] == 'SELL_LIMIT':
             if signal['tp1'] >= signal['entry'] or signal['sl'] <= signal['entry']:
-                logger.warning(f"Invalid SELL signal levels. Entry: {signal['entry']}, TP1: {signal['tp1']}, SL: {signal['sl']}")
+                logger.warning(f"Invalid SELL_LIMIT signal levels. Entry: {signal['entry']}, TP1: {signal['tp1']}, SL: {signal['sl']}")
                 return None
-        else: # BUY
+        else: # BUY_LIMIT
             if signal['tp1'] <= signal['entry'] or signal['sl'] >= signal['entry']:
-                logger.warning(f"Invalid BUY signal levels. Entry: {signal['entry']}, TP1: {signal['tp1']}, SL: {signal['sl']}")
+                logger.warning(f"Invalid BUY_LIMIT signal levels. Entry: {signal['entry']}, TP1: {signal['tp1']}, SL: {signal['sl']}")
                 return None
 
         return signal
