@@ -86,6 +86,12 @@ def execute_trade(signal, risk_manager, channel_name="Unknown"):
         logger.error(f"Unknown signal type: {signal['type']}")
         return False
 
+    # Clean the comment: normalize fancy unicode to standard ASCII, strip emojis, and truncate to MT5's 31-character limit
+    import unicodedata
+    raw_comment = f"TG_{channel_name}"
+    normalized_comment = unicodedata.normalize('NFKD', raw_comment)
+    clean_comment = "".join(c for c in normalized_comment if 32 <= ord(c) <= 126)[:31]
+
     request = {
         "action": mt5.TRADE_ACTION_PENDING,
         "symbol": symbol,
@@ -96,7 +102,7 @@ def execute_trade(signal, risk_manager, channel_name="Unknown"):
         "tp": tp,
         "deviation": 20,
         "magic": 123456,
-        "comment": f"TG_{channel_name}",
+        "comment": clean_comment,
         "type_filling": mt5.ORDER_FILLING_RETURN,
     }
 
