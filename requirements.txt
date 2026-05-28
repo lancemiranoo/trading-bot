@@ -2,3 +2,4 @@ MetaTrader5
 Telethon==1.33.1
 python-dotenv==1.0.0
 pytz
+firebase-admin==6.6.0
