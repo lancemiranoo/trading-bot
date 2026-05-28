@@ -62,7 +62,7 @@ SESSION_LOSS_LIMIT = 50.0  # Loss limit per individual trading session (Asian/Lo
 MAX_CONSECUTIVE_LOSSES = 3
 
 # Trade Execution
-ORDER_EXPIRATION_MINUTES = 10
+ORDER_EXPIRATION_MINUTES = 30
 
 # Session Times (UTC)
 # Asian Session: 00:00 - 09:00 UTC

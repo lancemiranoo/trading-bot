@@ -60,10 +60,11 @@ def parse_signal(text):
         signal['entry'] = (bound1 + bound2) / 2.0
 
         # Extract TP1 (mandatory)
-        # Matches TP, ITP, TP1, etc. handles dots like TP1. 
-        tp_match = re.search(r'(?:I)?TP\s*(?:1)?\s*[:.]?\s*([\d.]+)', text)
+        # Matches TP, ITP, TP1, etc. handles spaces, dots, colons, underscores and dashes.
+        sep = r'(?:\s*[:_ -]\s*|\s*\.(?!\d)\s*|\s+)'
+        tp_match = re.search(r'(?:I)?TP\s*(?:[-_ ]?1)' + sep + r'([\d.]+)', text)
         if not tp_match:
-            tp_match = re.search(r'TP\s*[:.]?\s*([\d.]+)', text)
+            tp_match = re.search(r'(?:I)?TP\s*[:._-]?\s*([\d.]+)', text)
             
         if not tp_match:
             logger.warning("No TP1 found in signal. Ignoring.")
@@ -71,10 +72,10 @@ def parse_signal(text):
         signal['tp1'] = float(tp_match.group(1))
 
         # Extract SL (mandatory)
-        # Matches SL or STOP LOSS, handles dots like SL.
-        sl_match = re.search(r'SL\s*[:.]?\s*([\d.]+)', text)
+        # Matches SL or STOP LOSS, handles spaces, dots, colons, underscores and dashes.
+        sl_match = re.search(r'SL\s*[:._-]?\s*([\d.]+)', text)
         if not sl_match:
-            sl_match = re.search(r'STOP\s*LOSS\s*(?:\(SL\))?\s*[:.]?\s*([\d.]+)', text)
+            sl_match = re.search(r'STOP\s*LOSS\s*(?:\(SL\))?\s*[:._-]?\s*([\d.]+)', text)
             
         if not sl_match:
             logger.warning("No SL found in signal. Ignoring.")
