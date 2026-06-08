@@ -70,5 +70,7 @@ ORDER_EXPIRATION_MINUTES = 30
 # Combined range: 00:00 - 17:00 UTC
 TRADING_SESSIONS = [
     {"name": "Asian", "start": "00:00", "end": "09:00"},
-    {"name": "London", "start": "08:00", "end": "17:00"}
+    {"name": "London", "start": "08:00", "end": "17:00"},
+    {"name": "New York", "start": "13:00", "end": "22:00"},
+    {"name": "Sydney", "start": "22:00", "end": "07:00"}
 ]
