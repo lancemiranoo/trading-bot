@@ -16,6 +16,12 @@ from datetime import datetime
 import firebase_admin
 from firebase_admin import credentials, firestore
 
+from core import config
+
+
+PAPER_TRADES_COLLECTION = "trades"
+LIVE_TRADES_COLLECTION = "live-trades"
+
 
 def init_firestore():
     """Initialize Firebase Admin SDK with service account credentials."""
@@ -35,6 +41,28 @@ def init_firestore():
     return firestore.client()
 
 
+def get_default_collection_name():
+    """Return the Firestore collection for the configured trading mode."""
+    return PAPER_TRADES_COLLECTION if config.PAPER_TRADING else LIVE_TRADES_COLLECTION
+
+
+def parse_timestamp(timestamp_str):
+    """Parse supported CSV timestamp formats."""
+    supported_formats = (
+        "%d/%m/%Y %H:%M",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+    )
+
+    for timestamp_format in supported_formats:
+        try:
+            return datetime.strptime(timestamp_str, timestamp_format)
+        except ValueError:
+            continue
+
+    raise ValueError(f"Unsupported timestamp format: {timestamp_str}")
+
+
 def parse_csv(file_path):
     """Parse trades.csv and return a list of trade dictionaries."""
     trades = []
@@ -47,9 +75,9 @@ def parse_csv(file_path):
             if not row.get("Ticket", "").strip():
                 continue
 
-            # Parse timestamp: "26/05/2026 0:25" -> datetime
+            # Parse timestamp from old CSVs and current bot logs.
             timestamp_str = row["Timestamp"].strip()
-            timestamp = datetime.strptime(timestamp_str, "%d/%m/%Y %H:%M")
+            timestamp = parse_timestamp(timestamp_str)
 
             # Parse status into result (WIN/LOSS) and clean status
             status_raw = row["Status"].strip()
@@ -81,10 +109,10 @@ def parse_csv(file_path):
     return trades
 
 
-def upload_trades(db, trades, dry_run=False):
-    """Batch-write trades to Firestore 'trades' collection."""
+def upload_trades(db, trades, collection_name, dry_run=False):
+    """Batch-write trades to the selected Firestore collection."""
     if dry_run:
-        print(f"\n[DRY RUN] Would upload {len(trades)} trades:\n")
+        print(f"\n[DRY RUN] Would upload {len(trades)} trades to '{collection_name}':\n")
         for t in trades:
             print(f"  {t['timestamp']} | {t['ticket']} | {t['symbol']} "
                   f"| {t['type']} | {t['result']} | P:{t['profit']} L:{t['loss']} "
@@ -93,7 +121,7 @@ def upload_trades(db, trades, dry_run=False):
 
     uploaded = 0
     skipped = 0
-    collection = db.collection("trades")
+    collection = db.collection(collection_name)
 
     # Firestore batch limit is 500 writes per batch
     batch_size = 500
@@ -143,6 +171,14 @@ def main():
         action="store_true",
         help="Preview trades without uploading to Firestore",
     )
+    parser.add_argument(
+        "--collection",
+        default=get_default_collection_name(),
+        help=(
+            "Firestore collection to upload to "
+            f"(default: {get_default_collection_name()} based on PAPER_TRADING)"
+        ),
+    )
     args = parser.parse_args()
 
     # Validate CSV file exists
@@ -151,6 +187,7 @@ def main():
         sys.exit(1)
 
     print(f"Reading trades from: {args.file}")
+    print(f"Target Firestore collection: {args.collection}")
     trades = parse_csv(args.file)
     print(f"Found {len(trades)} trades in CSV")
 
@@ -163,13 +200,13 @@ def main():
         # But we need SERVER_TIMESTAMP replaced for display
         for t in trades:
             t.pop("uploadedAt", None)
-        upload_trades(None, trades, dry_run=True)
+        upload_trades(None, trades, args.collection, dry_run=True)
     else:
         print("\nConnecting to Firestore...")
         db = init_firestore()
         print("Connected!\n")
 
-        uploaded, skipped = upload_trades(db, trades)
+        uploaded, skipped = upload_trades(db, trades, args.collection)
         print(f"\nDone! Uploaded: {uploaded} | Skipped (duplicates): {skipped}")
 
 

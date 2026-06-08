@@ -27,6 +27,14 @@ Run the script for csv upload:
 ```cmd
 & E:\Python\trading-bot\.venv\Scripts\python.exe E:\Python\trading-bot\upload_trades.py
 ```
+The uploader uses `PAPER_TRADING` from `.env` to choose the Firestore collection:
+- `PAPER_TRADING=True` uploads to `trades`
+- `PAPER_TRADING=False` uploads to `live-trades`
+
+To force the live collection manually:
+```cmd
+& E:\Python\trading-bot\.venv\Scripts\python.exe E:\Python\trading-bot\upload_trades.py --collection live-trades
+```
 
 ### 4. Stopping the Bot
 To instantly stop the bot (Kill Switch), simply press `Ctrl + C` in the terminal.
