@@ -15,12 +15,13 @@ from datetime import datetime
 
 import firebase_admin
 from firebase_admin import credentials, firestore
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 from core import config
 
 
 PAPER_TRADES_COLLECTION = "trades"
-LIVE_TRADES_COLLECTION = "live-trades"
+LIVE_TRADE_COLLECTION = "live-trade"
 
 
 def init_firestore():
@@ -43,15 +44,18 @@ def init_firestore():
 
 def get_default_collection_name():
     """Return the Firestore collection for the configured trading mode."""
-    return PAPER_TRADES_COLLECTION if config.PAPER_TRADING else LIVE_TRADES_COLLECTION
+    return PAPER_TRADES_COLLECTION if config.PAPER_TRADING else LIVE_TRADE_COLLECTION
 
 
 def parse_timestamp(timestamp_str):
     """Parse supported CSV timestamp formats."""
+    timestamp_str = timestamp_str.strip().replace("\u202f", " ")
     supported_formats = (
         "%d/%m/%Y %H:%M",
         "%Y-%m-%d %H:%M:%S",
         "%Y-%m-%d %H:%M",
+        "%B %d, %Y at %I:%M:%S %p UTC-6",
+        "%B %d, %Y at %I:%M %p UTC-6",
     )
 
     for timestamp_format in supported_formats:
@@ -71,16 +75,21 @@ def parse_csv(file_path):
         reader = csv.DictReader(f)
 
         for row in reader:
+            row = {
+                (key or "").strip().lower(): (value or "").strip()
+                for key, value in row.items()
+            }
+
             # Skip empty rows
-            if not row.get("Ticket", "").strip():
+            if not row.get("ticket"):
                 continue
 
             # Parse timestamp from old CSVs and current bot logs.
-            timestamp_str = row["Timestamp"].strip()
+            timestamp_str = row["timestamp"]
             timestamp = parse_timestamp(timestamp_str)
 
             # Parse status into result (WIN/LOSS) and clean status
-            status_raw = row["Status"].strip()
+            status_raw = row["status"]
             if "WIN" in status_raw:
                 result = "WIN"
             elif "LOSS" in status_raw:
@@ -90,17 +99,17 @@ def parse_csv(file_path):
 
             trade = {
                 "timestamp": timestamp,
-                "ticket": row["Ticket"].strip(),
-                "symbol": row["Symbol"].strip(),
-                "type": row["Type"].strip(),
+                "ticket": row["ticket"],
+                "symbol": row["symbol"],
+                "type": row["type"],
                 "status": status_raw,
                 "result": result,
-                "price": float(row["Price"].strip()),
-                "sl": float(row["SL"].strip()),
-                "tp": float(row["TP"].strip()),
-                "profit": float(row["Profit"].strip()),
-                "loss": float(row["Loss"].strip()),
-                "channel": row["Channel"].strip(),
+                "price": float(row["price"]),
+                "sl": float(row["sl"]),
+                "tp": float(row["tp"]),
+                "profit": float(row["profit"]),
+                "loss": float(row["loss"]),
+                "channel": row["channel"],
                 "uploadedAt": firestore.SERVER_TIMESTAMP,
             }
 
@@ -132,7 +141,9 @@ def upload_trades(db, trades, collection_name, dry_run=False):
         ticket = trade["ticket"]
 
         # Check for duplicate by ticket number
-        existing = collection.where("ticket", "==", ticket).limit(1).get()
+        existing = collection.where(
+            filter=FieldFilter("ticket", "==", ticket)
+        ).limit(1).get()
         if existing:
             print(f"  SKIP (duplicate): Ticket {ticket}")
             skipped += 1

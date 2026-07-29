@@ -3,12 +3,119 @@ from core.logger import get_logger
 
 logger = get_logger("SignalParser")
 
-PRICE_PATTERN = r'([\d,]+(?:\.\d+)?)'
+PRICE_TOKEN = r'\d[\d,]*(?:\.\d+)?'
+PRICE_PATTERN = rf'({PRICE_TOKEN})'
+ENTRY_SEPARATOR_PATTERN = r'(?:\s*(?:-|/|_|TO|\.\s*LIMIT\.?|\s+LIMIT\s+)\s*)'
 
 
 def parse_price(price_text):
     """Parse a price, allowing thousands separators like 4,314."""
     return float(price_text.replace(',', ''))
+
+
+def parse_entry_bound(bound_text):
+    return parse_price(bound_text)
+
+
+def parse_second_entry_bound(first_bound_text, second_bound_text):
+    """Expand abbreviated ranges like 4006-08 into 4006-4008."""
+    first_clean = first_bound_text.replace(',', '')
+    second_clean = second_bound_text.replace(',', '')
+
+    if (
+        len(second_clean) < len(first_clean)
+        and '.' not in first_clean
+        and '.' not in second_clean
+    ):
+        prefix = first_clean[:-len(second_clean)]
+        return float(prefix + second_clean)
+
+    return parse_price(second_bound_text)
+
+
+def extract_entry_bounds(fragment):
+    range_match = re.search(
+        PRICE_PATTERN + ENTRY_SEPARATOR_PATTERN + PRICE_PATTERN,
+        fragment,
+    )
+    if range_match:
+        bound1_text = range_match.group(1)
+        bound2_text = range_match.group(2)
+        return (
+            parse_entry_bound(bound1_text),
+            parse_second_entry_bound(bound1_text, bound2_text),
+        )
+
+    single_match = re.search(PRICE_PATTERN, fragment)
+    if single_match:
+        bound = parse_entry_bound(single_match.group(1))
+        return bound, bound
+
+    return None
+
+
+def find_entry_bounds(text, direction):
+    """Find entry from labels, zones, or the line containing BUY/SELL."""
+    entry_labels = (
+        r'ENTRY\s*(?:PRICE|ZONE)?',
+        rf'{direction}\s+ZONE',
+    )
+
+    for label_pattern in entry_labels:
+        for label_match in re.finditer(label_pattern, text):
+            line_tail = text[label_match.end():].splitlines()[0]
+            bounds = extract_entry_bounds(line_tail)
+            if bounds:
+                return bounds
+
+    direction_matcher = re.compile(rf'(?<![A-Z0-9]){direction}(?![A-Z0-9])')
+    for line in text.splitlines():
+        direction_match = direction_matcher.search(line)
+        if not direction_match:
+            continue
+
+        line_tail = line[direction_match.end():]
+        bounds = extract_entry_bounds(line_tail)
+        if bounds:
+            return bounds
+
+    return None
+
+
+def find_first_tp(text):
+    tp_label = re.compile(
+        r'(?<![A-Z0-9])(?:'
+        r'TP\s*(?:[-_ ]?[1-9]\d?)?(?!\d)|'
+        r'TAKE\s*PROFIT\s*(?:TARGETS?)?\s*(?:[-_ ]?[1-9]\d?)?(?!\d)|'
+        r'TAKEPROFIT\s*(?:[-_ ]?[1-9]\d?)?(?!\d)'
+        r')(?![A-Z])'
+    )
+
+    for line in text.splitlines():
+        label_match = tp_label.search(line)
+        if not label_match:
+            continue
+
+        price_match = re.search(PRICE_PATTERN, line[label_match.end():])
+        if price_match:
+            return parse_price(price_match.group(1))
+
+    return None
+
+
+def find_sl(text):
+    sl_label = re.compile(r'(?<![A-Z0-9])(?:SL|STOP\s*LOSS|STOPLOSS)(?![A-Z0-9])')
+
+    for line in text.splitlines():
+        label_match = sl_label.search(line)
+        if not label_match:
+            continue
+
+        price_match = re.search(PRICE_PATTERN, line[label_match.end():])
+        if price_match:
+            return parse_price(price_match.group(1))
+
+    return None
 
 
 def has_four_integer_digits(value):
@@ -50,80 +157,50 @@ def parse_signal(text):
 
         signal = {}
 
-        if "BUY" in text:
-            signal['type'] = 'BUY_LIMIT'
-        elif "SELL" in text:
-            signal['type'] = 'SELL_LIMIT'
+        if re.search(r'(?<![A-Z0-9])BUY(?![A-Z0-9])', text):
+            signal['type'] = 'BUY'
+        elif re.search(r'(?<![A-Z0-9])SELL(?![A-Z0-9])', text):
+            signal['type'] = 'SELL'
         else:
             return None
 
-        # Find Entry Price
-        # Look for "Entry Price:", "Entry:", or just after BUY/SELL
-        entry_match = re.search(r'ENTRY\s*(?:PRICE)?\s*[:]?\s*' + PRICE_PATTERN + r'(?:\s*-\s*' + PRICE_PATTERN + r')?', text)
-        if not entry_match:
-            # Handle "BUY NOW !" or "SELL NOW !"
-            if signal['type'] == 'SELL_LIMIT':
-                entry_match = re.search(r'SELL\s*(?:NOW\s*!)?\s*[:]?\s*' + PRICE_PATTERN + r'(?:\s*-\s*' + PRICE_PATTERN + r')?', text)
-            else:
-                entry_match = re.search(r'BUY\s*(?:NOW\s*!)?\s*[:]?\s*' + PRICE_PATTERN + r'(?:\s*-\s*' + PRICE_PATTERN + r')?', text)
-
-        if not entry_match:
+        entry_bounds = find_entry_bounds(text, signal['type'])
+        if not entry_bounds:
             logger.debug("Entry bounds not found in signal format.")
             return None
 
-        bound1_str = entry_match.group(1)
-        bound2_str = entry_match.group(2)
+        bound1, bound2 = entry_bounds
 
-        bound1_clean = bound1_str.replace(',', '')
-        bound1 = parse_price(bound1_str)
-        if bound2_str:
-            # Handle abbreviated bounds like 4596-93 -> 4593
-            bound2_clean = bound2_str.replace(',', '')
-            if len(bound2_clean) < len(bound1_clean):
-                prefix = bound1_clean[:-len(bound2_clean)]
-                bound2 = float(prefix + bound2_clean)
-            else:
-                bound2 = parse_price(bound2_str)
-        else:
-            bound2 = bound1
-        
+        # Store raw bounds so executor can measure the range width
+        signal['range_low'] = min(bound1, bound2)
+        signal['range_high'] = max(bound1, bound2)
+
         # Determine entry price using the median of the two bounds
         signal['entry'] = (bound1 + bound2) / 2.0
 
-        # Extract TP1 (mandatory)
-        # Matches TP, ITP, TP1, etc. handles spaces, dots, colons, underscores and dashes.
-        sep = r'(?:\s*[:_ -]\s*|\s*\.(?!\d)\s*|\s+)'
-        tp_match = re.search(r'(?:I)?TP\s*(?:[-_ ]?1)' + sep + PRICE_PATTERN, text)
-        if not tp_match:
-            tp_match = re.search(r'(?:I)?TP\s*[:._-]?\s*' + PRICE_PATTERN, text)
-            
-        if not tp_match:
+        tp1 = find_first_tp(text)
+        if tp1 is None:
             logger.warning("No TP1 found in signal. Ignoring.")
             return None
-        signal['tp1'] = parse_price(tp_match.group(1))
+        signal['tp1'] = tp1
 
-        # Extract SL (mandatory)
-        # Matches SL or STOP LOSS, handles spaces, dots, colons, underscores and dashes.
-        sl_match = re.search(r'SL\s*[:._-]?\s*' + PRICE_PATTERN, text)
-        if not sl_match:
-            sl_match = re.search(r'STOP\s*LOSS\s*(?:\(SL\))?\s*[:._-]?\s*' + PRICE_PATTERN, text)
-            
-        if not sl_match:
+        sl = find_sl(text)
+        if sl is None:
             logger.warning("No SL found in signal. Ignoring.")
             return None
-        signal['sl'] = parse_price(sl_match.group(1))
+        signal['sl'] = sl
 
         if not validate_signal_price_digits(signal):
             return None
 
         # Validate logic
-        if signal['type'] == 'SELL_LIMIT':
+        if signal['type'] == 'SELL':
             if signal['tp1'] >= signal['entry'] or signal['sl'] <= signal['entry']:
-                logger.warning(f"Invalid SELL_LIMIT signal levels. Entry: {signal['entry']}, TP1: {signal['tp1']}, SL: {signal['sl']}")
+                logger.warning(f"Invalid SELL signal levels. Entry: {signal['entry']}, TP1: {signal['tp1']}, SL: {signal['sl']}")
                 return None
-        else: # BUY_LIMIT
+        else: # BUY
             if signal['tp1'] <= signal['entry'] or signal['sl'] >= signal['entry']:
-                logger.warning(f"Invalid BUY_LIMIT signal levels. Entry: {signal['entry']}, TP1: {signal['tp1']}, SL: {signal['sl']}")
+                logger.warning(f"Invalid BUY signal levels. Entry: {signal['entry']}, TP1: {signal['tp1']}, SL: {signal['sl']}")
                 return None
 
         return signal
