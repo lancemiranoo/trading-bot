@@ -97,6 +97,10 @@ def parse_csv(file_path):
             else:
                 result = "UNKNOWN"
 
+            channel = row["channel"]
+            if channel == "-":
+                channel = "Mobile"
+
             trade = {
                 "timestamp": timestamp,
                 "ticket": row["ticket"],
@@ -109,7 +113,7 @@ def parse_csv(file_path):
                 "tp": float(row["tp"]),
                 "profit": float(row["profit"]),
                 "loss": float(row["loss"]),
-                "channel": row["channel"],
+                "channel": channel,
                 "uploadedAt": firestore.SERVER_TIMESTAMP,
             }
 
