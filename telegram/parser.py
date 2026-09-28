@@ -1,4 +1,5 @@
 import re
+from core import config
 from core.logger import get_logger
 
 logger = get_logger("SignalParser")
@@ -139,6 +140,14 @@ def validate_signal_price_digits(signal):
     return True
 
 
+def calculate_fixed_stop_loss(entry, direction):
+    """Calculate the fixed XAUUSD stop loss from the signal entry price."""
+    distance = config.FIXED_STOP_LOSS_PIPS * config.XAUUSD_PIP_SIZE
+    if direction == 'BUY':
+        return round(entry - distance, 2)
+    return round(entry + distance, 2)
+
+
 def parse_signal(text):
 
     try:
@@ -184,11 +193,9 @@ def parse_signal(text):
             return None
         signal['tp1'] = tp1
 
-        sl = find_sl(text)
-        if sl is None:
-            logger.warning("No SL found in signal. Ignoring.")
-            return None
-        signal['sl'] = sl
+        # Ignore any Telegram-provided SL. The bot uses a fixed 70-pip SL
+        # measured from the entry price for consistent risk management.
+        signal['sl'] = calculate_fixed_stop_loss(signal['entry'], signal['type'])
 
         if not validate_signal_price_digits(signal):
             return None

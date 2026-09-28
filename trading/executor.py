@@ -8,16 +8,6 @@ from trading.trade_logger import log_trade
 logger = get_logger("TradeExecutor")
 
 # ──────────────────────────────────────────────────────────────────────────────
-# If the gap between the signal's entry price and the current live market price
-# is >= this value, the market has already moved far enough from the intended
-# entry that placing a limit order is impractical → use a market order instead.
-#
-# Example: signal entry = 2330, live ask = 2332  →  gap = 2  →  market order
-#          signal entry = 2330, live ask = 2331  →  gap = 1  →  limit order
-# ──────────────────────────────────────────────────────────────────────────────
-MARKET_EXECUTION_THRESHOLD = 2.0
-
-
 def initialize_mt5():
     """Initializes and logs into the MetaTrader 5 terminal."""
     mt5_path = "C:/Program Files/MetaTrader 5/terminal64.exe"
@@ -54,21 +44,20 @@ def _get_tick(symbol: str):
     return tick
 
 
+def _fixed_stop_loss(entry_price: float, direction: str) -> float:
+    """Return the configured fixed XAUUSD stop loss from the entry price."""
+    distance = config.FIXED_STOP_LOSS_PIPS * config.XAUUSD_PIP_SIZE
+    if direction == 'BUY':
+        return round(entry_price - distance, 2)
+    return round(entry_price + distance, 2)
+
+
 def execute_trade(signal, risk_manager, channel_name="Unknown"):
     """
-    Routes execution to either a market order or a limit order based on how
-    far the current live price has moved from the signal's entry price.
+    Places a pending limit order at the signal entry price.
 
-    Rule:
-        |live_price - signal_entry| >= MARKET_EXECUTION_THRESHOLD  →  market order
-        |live_price - signal_entry| <  MARKET_EXECUTION_THRESHOLD  →  limit order
-
-    For BUY signals the live price used is the ask.
-    For SELL signals the live price used is the bid.
-
-    Example:
-        signal entry = 2330, live ask = 2332  →  gap = 2  →  market order
-        signal entry = 2330, live ask = 2331  →  gap = 1  →  limit order
+    BUY signals use BUY_LIMIT and SELL signals use SELL_LIMIT. Stop loss is
+    calculated from the entry using the configured fixed pip distance.
 
     Signal keys expected:
         type   – 'BUY' or 'SELL'
@@ -90,25 +79,10 @@ def execute_trade(signal, risk_manager, channel_name="Unknown"):
     if not tick:
         return False
 
-    entry_price = signal['entry']
-    direction   = signal['type']  # 'BUY' or 'SELL'
-
-    # Use ask for BUY, bid for SELL — the price the trader would actually pay/receive
-    market_price = tick.ask if direction == 'BUY' else tick.bid
-    market_gap   = abs(market_price - entry_price)
-
     logger.info(
-        f"Signal entry: {entry_price} | Live {'ask' if direction == 'BUY' else 'bid'}: {market_price} "
-        f"| Gap: {market_gap:.5f} | Threshold: {MARKET_EXECUTION_THRESHOLD}"
+        f"Submitting {signal['type']}_LIMIT at signal entry {signal['entry']}"
     )
-
-    if market_gap >= MARKET_EXECUTION_THRESHOLD:
-        logger.info(f"Gap ({market_gap:.5f}) >= threshold → using MARKET execution.")
-        return _execute_market_order(signal, symbol, tick, channel_name)
-    else:
-        logger.info(f"Gap ({market_gap:.5f}) < threshold → using LIMIT order.")
-        return _execute_limit_order(signal, symbol, tick, channel_name)
-
+    return _execute_limit_order(signal, symbol, tick, channel_name)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Market order
@@ -117,9 +91,9 @@ def execute_trade(signal, risk_manager, channel_name="Unknown"):
 def _execute_market_order(signal, symbol: str, tick, channel_name: str) -> bool:
     """Places an instant market order (BUY or SELL) at the current bid/ask."""
     lot = config.LOT_SIZE
-    sl = signal['sl']
-    tp = signal['tp1']
     direction = signal['type']  # 'BUY' or 'SELL'
+    sl = _fixed_stop_loss(signal['entry'], direction)
+    tp = signal['tp1']
 
     if direction == 'BUY':
         action = mt5.ORDER_TYPE_BUY
@@ -181,10 +155,10 @@ def _execute_market_order(signal, symbol: str, tick, channel_name: str) -> bool:
 def _execute_limit_order(signal, symbol: str, tick, channel_name: str) -> bool:
     """Places a pending LIMIT order at the signal's entry mid-point price."""
     lot = config.LOT_SIZE
-    sl = signal['sl']
-    tp = signal['tp1']
     entry_price = signal['entry']
     direction = signal['type']  # 'BUY' or 'SELL'
+    sl = _fixed_stop_loss(entry_price, direction)
+    tp = signal['tp1']
 
     if direction == 'BUY':
         action = mt5.ORDER_TYPE_BUY_LIMIT
