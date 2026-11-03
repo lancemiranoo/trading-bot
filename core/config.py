@@ -76,3 +76,46 @@ TRADING_SESSIONS = [
     {"name": "New York", "start": "13:00", "end": "22:00"},
     {"name": "Sydney", "start": "22:00", "end": "07:00"}
 ]
+
+# ==========================================
+# News Filter (https://www.financecalendar.com)
+# ==========================================
+NEWS_FILTER_ENABLED = True
+FINANCECALENDAR_API_KEY = os.getenv('FINANCECALENDAR_API_KEY', '')   # optional, raises daily limit
+NEWS_API_BASE = "https://www.financecalendar.com/wp-json/fc/v1"
+NEWS_IMPACT = ["high", "medium"]   # block on high AND medium impact
+
+# Only events that move gold (XAUUSD). Series codes from financecalendar.com /series.
+NEWS_SERIES = [
+    # Fed / interest rates
+    "fomc",                     # FOMC rate decision (high)
+    "fomc-minutes",             # FOMC minutes (medium)
+    "fed-testimony",            # Fed Chair testimony (medium)
+    "jackson-hole",             # Jackson Hole symposium (medium)
+    # Inflation
+    "us-cpi",                   # CPI (high)
+    "us-pce",                   # PCE inflation (high)
+    "us-ppi",                   # PPI (medium)
+    "us-employment-cost-index", # Employment Cost Index (medium)
+    # Jobs
+    "us-nfp",                   # Non-Farm Payrolls (high)
+    "us-unemployment",          # Unemployment rate (medium)
+    "us-jobless-claims",        # Weekly jobless claims, Thursdays (medium)
+    "us-adp",                   # ADP employment (medium)
+    "us-jolts",                 # JOLTS job openings (medium)
+    # Growth / activity
+    "us-gdp",                   # GDP (high)
+    "us-retail-sales",          # Retail sales (high)
+    "us-ism-manufacturing",     # ISM Manufacturing PMI (high)
+    "us-ism-services",          # ISM Services PMI (medium)
+    "us-consumer-sentiment",    # UMich sentiment / inflation expectations (medium)
+]
+NEWS_BLOCK_BEFORE_MIN = 60         # stop trading 1 hour before
+NEWS_BLOCK_AFTER_MIN = 60          # resume 1 hour after
+NEWS_REFRESH_MINUTES = 60          # API caches 5 min; hourly is plenty
+NEWS_LOOKAHEAD_DAYS = 7
+NEWS_CANCEL_PENDING_ORDERS = True
+NEWS_CLOSE_OPEN_POSITIONS = False
+NEWS_UNTIMED_POLICY = "ignore"     # "ignore" | "block_day"
+NEWS_FAIL_MODE = "block"           # "block" | "allow" when calendar data is stale
+NEWS_MAX_CACHE_AGE_HOURS = 24
