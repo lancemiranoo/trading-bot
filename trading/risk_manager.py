@@ -3,12 +3,14 @@ from core import config
 from core.logger import get_logger
 from datetime import datetime, timedelta, timezone
 import pytz
+from trading.news_filter import describe
 from trading.trade_logger import log_closed_trade, get_logged_tickets
 
 logger = get_logger("RiskManager")
 
 class RiskManager:
-    def __init__(self):
+    def __init__(self, news_filter=None):
+        self.news_filter = news_filter
         self.last_reset_date = datetime.now().date()
         self.current_session = None
         self.session_loss = 0.0
@@ -148,6 +150,13 @@ class RiskManager:
         if self.trading_paused:
             logger.warning("Trading is currently paused due to risk limits.")
             return False
+
+        # News blackout check (high-impact news window)
+        if self.news_filter and config.NEWS_FILTER_ENABLED:
+            ev = self.news_filter.active_event()
+            if ev:
+                logger.warning(f"NOT TRADING - gold news: {describe(ev)}")
+                return False
 
         # Session Check
         in_session, session_info = self.is_in_trading_session()
