@@ -38,3 +38,11 @@ To force the live collection manually:
 
 ### 4. Stopping the Bot
 To instantly stop the bot (Kill Switch), simply press `Ctrl + C` in the terminal.
+
+### 5. News Filter
+The bot pauses new trades from 1 hour before to 1 hour after high- or medium-impact gold-moving news
+(Fed, inflation, jobs, growth: the list is `NEWS_SERIES` in `core/config.py`),
+and cancels its own pending limit orders when a blackout starts. Tune it in `core/config.py` (`NEWS_*` settings).
+An optional free API key can go in `.env` as `FINANCECALENDAR_API_KEY`.
+
+Economic calendar data courtesy of [financecalendar.com](https://www.financecalendar.com).
