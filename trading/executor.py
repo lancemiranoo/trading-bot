@@ -225,3 +225,56 @@ def _execute_limit_order(signal, symbol: str, tick, channel_name: str) -> bool:
     logger.info(f"LIMIT order placed: {direction} at {price}, SL: {sl}, TP: {tp}")
     # log_trade(signal, channel_name, price=price, ticket=result.order)  # Disabled – logs only closed trades
     return True
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# News blackout helpers
+# ──────────────────────────────────────────────────────────────────────────────
+
+BOT_MAGIC = 123456
+
+
+def cancel_bot_pending_orders(symbol: str) -> int:
+    """Cancel this bot's pending orders (matched by magic number). Returns count cancelled."""
+    orders = mt5.orders_get(symbol=symbol)
+    cancelled = 0
+    for o in orders or []:
+        if o.magic != BOT_MAGIC:
+            continue
+        result = mt5.order_send({"action": mt5.TRADE_ACTION_REMOVE, "order": o.ticket})
+        if result is not None and result.retcode == mt5.TRADE_RETCODE_DONE:
+            cancelled += 1
+        else:
+            logger.error(f"Failed to cancel pending order {o.ticket}: {result.comment if result else mt5.last_error()}")
+    return cancelled
+
+
+def close_bot_positions(symbol: str) -> int:
+    """Close this bot's open positions at market. Returns count closed."""
+    positions = mt5.positions_get(symbol=symbol)
+    closed = 0
+    for p in positions or []:
+        if p.magic != BOT_MAGIC:
+            continue
+        tick = mt5.symbol_info_tick(symbol)
+        if not tick:
+            continue
+        is_buy = p.type == mt5.POSITION_TYPE_BUY
+        result = mt5.order_send({
+            "action": mt5.TRADE_ACTION_DEAL,
+            "symbol": symbol,
+            "volume": p.volume,
+            "type": mt5.ORDER_TYPE_SELL if is_buy else mt5.ORDER_TYPE_BUY,
+            "position": p.ticket,
+            "price": tick.bid if is_buy else tick.ask,
+            "deviation": 20,
+            "magic": BOT_MAGIC,
+            "comment": "news close",
+            "type_time": mt5.ORDER_TIME_GTC,
+            "type_filling": mt5.ORDER_FILLING_IOC,
+        })
+        if result is not None and result.retcode == mt5.TRADE_RETCODE_DONE:
+            closed += 1
+        else:
+            logger.error(f"Failed to close position {p.ticket}: {result.comment if result else mt5.last_error()}")
+    return closed
