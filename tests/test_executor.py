@@ -49,7 +49,7 @@ class ExecutorLimitOrderTests(unittest.TestCase):
         self.assertEqual(request["action"], mt5.TRADE_ACTION_PENDING)
         self.assertEqual(request["type"], mt5.ORDER_TYPE_SELL_LIMIT)
         self.assertEqual(request["price"], 4278.0)
-        self.assertEqual(request["sl"], 4278.7)
+        self.assertEqual(request["sl"], 4285.0)
         self.assertNotEqual(request["price"], 4272.0)
 
     @patch.object(executor.config, "SYMBOL", "XAUUSD")

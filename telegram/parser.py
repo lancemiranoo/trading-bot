@@ -193,7 +193,7 @@ def parse_signal(text):
             return None
         signal['tp1'] = tp1
 
-        # Ignore any Telegram-provided SL. The bot uses a fixed 70-pip SL
+        # Ignore any Telegram-provided SL. The bot uses a fixed 700-pip SL
         # measured from the entry price for consistent risk management.
         signal['sl'] = calculate_fixed_stop_loss(signal['entry'], signal['type'])
 
